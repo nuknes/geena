@@ -163,7 +163,7 @@ Caelestia regenerates `~/.local/state/caelestia/sequences.txt` every time your w
 │       │         └── cat sequences.txt → theme terminal      │
 │       │         └── exec unimatrix → draw rain              │
 │       │                                                     │
-│       ├── 180s: "lock" → hyprlock covers the terminal      │
+│       ├── 180s: "lock" → hyprlock covers the terminal       │
 │       │         returnAction: pkill foot → rain gone        │
 │       │         (fires on unlock, not on launch)            │
 │       │                                                     │
@@ -173,7 +173,7 @@ Caelestia regenerates `~/.local/state/caelestia/sequences.txt` every time your w
 │                                                             │
 │  window_rule: opaque=0 (override Caelestia default)         │
 │  window_rule: float, center, 1920x1080, 0.75 opacity        │
-│  keybind:     SUPER+U → toggle                              │
+│  keybind:     SUPER+U  toggle                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
