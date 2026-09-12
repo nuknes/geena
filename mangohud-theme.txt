@@ -3,6 +3,10 @@ MANGOHUD + CAELESTIA DYNAMIC THEMING
 Reference Document - 12 September 2026
 =============================================================================
 
+Note:
+Wallpaper changes → Caelestia cli fires postHook → script rewrites MangoHud.conf 
+→ MangoHud detects file change → colors update live in the running game   
+
 =============================================================================
 1. WHAT WAS INSTALLED
 =============================================================================
@@ -70,8 +74,8 @@ MangoHud config (target of the script):
             └── Appends new color block to MangoHud.conf
             │
             ▼
-    Next game launch reads updated MangoHud.conf
-    (No in-game reload needed - just quit and relaunch)
+    Colors update live in the running game reads updated MangoHud.conf
+    (No in-game reload needed - colors update live in the running game)
 
 =============================================================================
 4. THE SCRIPT (mangohud-theme.sh)
