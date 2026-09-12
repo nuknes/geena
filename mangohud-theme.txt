@@ -1,0 +1,297 @@
+=============================================================================
+MANGOHUD + CAELESTIA DYNAMIC THEMING
+Reference Document - 12 September 2026
+=============================================================================
+
+=============================================================================
+1. WHAT WAS INSTALLED
+=============================================================================
+
+MangoHud (Flatpak Vulkan layer for Bottles):
+    flatpak install flathub org.freedesktop.Platform.VulkanLayer.MangoHud//25.08
+    Size: ~11 MB download, ~34 MB installed
+    Purpose: In-game FPS/performance overlay
+
+Bottles setting:
+    Bottle → Settings → Performance → "Monitor Performance" = ON
+    (This injects the MangoHud layer into every game launched from the bottle)
+
+=============================================================================
+2. FILE LOCATIONS
+=============================================================================
+
+Caelestia scheme (source of colors):
+    ~/.local/state/caelestia/scheme.json
+    - Regenerated automatically on every wallpaper change
+    - Contains the full Material 3 palette as nested JSON
+    - Key structure: { "colours": { "text": "...", "mauve": "...", ... } }
+
+Caelestia CLI config (triggers the script):
+    ~/.config/caelestia/cli.json
+    Content:
+    {
+        "theme": {
+            "postHook": "~/.local/state/caelestia/theme/mangohud-theme.sh"
+        }
+    }
+    - Read at Caelestia startup (restart required after editing)
+    - postHook fires after scheme.json is regenerated
+
+The bridge script:
+    ~/.local/state/caelestia/theme/mangohud-theme.sh
+    - Reads scheme.json, extracts colors, rewrites MangoHud.conf
+    - Must be executable (chmod +x)
+
+MangoHud config (target of the script):
+    ~/.var/app/com.usebottles.bottles/config/MangoHud/MangoHud.conf
+    - Read by MangoHud on every game launch
+    - Split into two sections:
+        [STATIC] - everything before "text_color=" (never modified by script)
+        [DYNAMIC] - everything from "text_color=" to EOF (rewritten each run)
+
+=============================================================================
+3. HOW THEY INTERACT (FLOW)
+=============================================================================
+
+    Wallpaper changes
+            │
+            ▼
+    Caelestia regenerates scheme.json
+            │
+            ▼
+    Caelestia fires theme.postHook (from cli.json)
+            │
+            ▼
+    mangohud-theme.sh runs
+            │
+            ├── Reads ~/.local/state/caelestia/scheme.json
+            ├── Extracts 10 color values via jq
+            ├── sed -i '/^text_color=/,$d' → deletes old color block
+            └── Appends new color block to MangoHud.conf
+            │
+            ▼
+    Next game launch reads updated MangoHud.conf
+    (No in-game reload needed - just quit and relaunch)
+
+=============================================================================
+4. THE SCRIPT (mangohud-theme.sh)
+=============================================================================
+
+#!/bin/bash
+# ~/.local/state/caelestia/theme/mangohud-theme.sh
+# Sources MangoHud colors from Caelestia dynamic scheme
+
+SCHEME=~/.local/state/caelestia/scheme.json
+MANGOHUD=~/.var/app/com.usebottles.bottles/config/MangoHud/MangoHud.conf
+
+# Extract colors
+TEXT=$(jq -r '.colours.text' "$SCHEME")
+MAUVE=$(jq -r '.colours.mauve' "$SCHEME")
+GREEN=$(jq -r '.colours.green' "$SCHEME")
+PINK=$(jq -r '.colours.pink' "$SCHEME")
+SKY=$(jq -r '.colours.sky' "$SCHEME")
+OUTLINE=$(jq -r '.colours.outline' "$SCHEME")
+BACKGROUND=$(jq -r '.colours.background' "$SCHEME")
+RED=$(jq -r '.colours.red' "$SCHEME")
+YELLOW=$(jq -r '.colours.yellow' "$SCHEME")
+TEAL=$(jq -r '.colours.teal' "$SCHEME")
+
+# Fallbacks (if scheme.json is missing or malformed)
+TEXT=${TEXT:-FFFFFF}
+MAUVE=${MAUVE:-EB5B85}
+GREEN=${GREEN:-39F900}
+PINK=${PINK:-FFFFFF}
+SKY=${SKY:-FFFFFF}
+OUTLINE=${OUTLINE:-EB5B85}
+BACKGROUND=${BACKGROUND:-0e0e0e}
+RED=${RED:-FF0000}
+YELLOW=${YELLOW:-FFFF00}
+TEAL=${TEAL:-39F900}
+
+# Strip from text_color= to EOF (the dynamic color block)
+sed -i '/^text_color=/,$d' "$MANGOHUD" 2>/dev/null
+
+# Append new color block
+cat >> "$MANGOHUD" <<EOF
+text_color=${TEXT}
+gpu_color=${MAUVE}
+cpu_color=${MAUVE}
+vram_color=${PINK}
+ram_color=${SKY}
+frametime_color=${GREEN}
+wine_color=${MAUVE}
+engine_color=${MAUVE}
+horizontal_separator_color=${OUTLINE}
+fps_color=${RED},${YELLOW},${TEAL}
+EOF
+
+=============================================================================
+5. COLOR MAPPING (MangoHud ← Caelestia)
+=============================================================================
+
+    MangoHud param              Caelestia key         Purpose
+    ─────────────────────────   ──────────────────    ─────────────────────
+    text_color                  .colours.text         All default text
+    gpu_color                   .colours.mauve        GPU label + stats
+    cpu_color                   .colours.mauve        CPU label + stats
+    vram_color                  .colours.pink         VRAM
+    ram_color                   .colours.sky          RAM
+    frametime_color             .colours.green        Frame timing graph
+    wine_color                  .colours.mauve        Proton/DXVK label
+    engine_color                .colours.mauve        DXVK/OpenGL label
+    horizontal_separator_color  .colours.outline      Column dividers
+    fps_color (3 values)        .colours.red,         Traffic light:
+                                .colours.yellow,      <30 / 30-57 / >57
+                                .colours.teal
+
+    Note: background_color is NOT set dynamically.
+    background_alpha=0.1 (static) handles the background opacity.
+
+=============================================================================
+6. MANGOHUD.CONF STRUCTURE (current)
+=============================================================================
+
+    ┌─────────────────────────────────────────────────────────────────┐
+    │ STATIC SECTION (never touched by script)                        │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ legacy_layout=0                                                 │
+    │ toggle_hud=Shift_R+F12                                          │
+    │ position=bottom-left                                            │
+    │ background_alpha=0.1                                            │
+    │ font_size=20                                                    │
+    │ font_size_secondary=14                                          │
+    │ text_outline=0                                                  │
+    │ text_outline_color=                                             │
+    │ text_outline_thickness=0.5                                      │
+    │ custom_text=SUPER POTATO HUD                                    │
+    │ offset_x=1                                                      │
+    │ horizontal                                                      │
+    │ gpu_list=1                                                      │
+    │ gpu_stats                                                       │
+    │ gpu_temp                                                        │
+    │ cpu_stats                                                       │
+    │ cpu_temp                                                        │
+    │ vram                                                            │
+    │ ram                                                             │
+    │ frametime=0                                                     │
+    │ frame_timing=1                                                  │
+    │ fps                                                             │
+    │ fps_color_change                                                │
+    │ fps_value=30,57                                                 │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ DYNAMIC SECTION (rewritten by script on every theme change)     │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ text_color=dee8df                                               │
+    │ gpu_color=5bd0df                                                │
+    │ cpu_color=5bd0df                                                │
+    │ vram_color=bae2ff                                               │
+    │ ram_color=9aebcf                                                │
+    │ frametime_color=a0f1c0                                          │
+    │ wine_color=5bd0df                                               │
+    │ engine_color=5bd0df                                             │
+    │ horizontal_separator_color=6e7871                               │
+    │ fps_color=c5b542,dcf9d8,a8eece                                  │
+    └─────────────────────────────────────────────────────────────────┘
+
+    The "text_color=" line is the ANCHOR. Everything from that line
+    to EOF is deleted and rewritten by the script. Everything above
+    it is preserved permanently.
+
+=============================================================================
+7. KEY BEHAVIORS & RULES
+=============================================================================
+
+    • MangoHud.conf REPLACES defaults when it exists. You must list
+      every parameter you want (fps, cpu_stats, gpu_stats, etc.)
+    • To DISABLE a default: parameter=0 (e.g., frametime=0)
+    • To ENABLE something: just the parameter name (e.g., gpu_temp)
+    • # comments are inert - they do NOT disable anything
+    • In-game hotkeys (Shift_L+F4 reload, Shift_R+F12 toggle) DO NOT
+      WORK under Proton/DXVK. Must quit and relaunch the game.
+    • MangoHud uses the LAST value if a parameter appears twice
+    • table_columns is broken in current versions (always 1 row)
+    • position=bottom-right + horizontal = BUG (use bottom-left)
+    • custom_text requires legacy_layout=0
+    • custom_text uses font_size (not font_size_text)
+    • custom_text has no separate color (uses text_color)
+    • frametime_color controls BOTH the ms number AND the graph
+    • fps_color requires fps_color_change to be enabled
+    • gpu_list=1 = NVIDIA dGPU, gpu_list=0 = Intel iGPU
+
+=============================================================================
+8. MAINTENANCE
+=============================================================================
+
+    Manual trigger (if hook doesn't fire):
+        ~/.local/state/caelestia/theme/mangohud-theme.sh
+
+    Verify the hook fired:
+        tail -10 ~/.var/app/com.usebottles.bottles/config/MangoHud/MangoHud.conf
+        (Should show hex values matching current scheme.json)
+
+    Check current scheme colors:
+        cat ~/.local/state/caelestia/scheme.json | jq .colours
+
+    If you change the static section of MangoHud.conf:
+        - Keep "text_color=" as the LAST line of the static section
+        - Anything below it will be overwritten by the script
+        - Edit above the anchor, not below
+
+    If you add new color params to the script:
+        - Add the jq extraction at the top
+        - Add a fallback
+        - Add the line in the cat >> block
+        - Make sure it's below "text_color=" in the output
+
+    If you want to remove dynamic theming:
+        1. Remove "postHook" from ~/.config/caelestia/cli.json
+        2. Restart Caelestia
+        3. Optionally: rm ~/.local/state/caelestia/theme/mangohud-theme.sh
+        4. Edit the color block in MangoHud.conf manually
+
+    If you want to uninstall MangoHud entirely:
+        flatpak uninstall org.freedesktop.Platform.VulkanLayer.MangoHud//25.08
+        rm -rf ~/.var/app/com.usebottles.bottles/config/MangoHud/
+        Toggle "Monitor Performance" OFF in Bottles bottle settings
+
+=============================================================================
+9. TROUBLESHOOTING
+=============================================================================
+
+    Hook not firing:
+        - Check cli.json is valid JSON (no trailing commas)
+        - Restart Caelestia after editing cli.json
+        - Verify script is executable: ls -la ~/.local/state/caelestia/theme/mangohud-theme.sh
+        - Test manually: ~/.local/state/caelestia/theme/mangohud-theme.sh
+
+    MangoHud not showing in a game:
+        - Confirm "Monitor Performance" is ON in bottle settings
+        - Confirm the Flatpak layer is installed:
+          flatpak list | grep MangoHud
+        - Some D3D9 games may not inject the layer (Refunct issue)
+        - Force with env var in bottle: MANGOHUD=1
+
+    Colors not updating in-game:
+        - Must fully quit and relaunch the game (no hotkey reload under Proton)
+        - Verify MangoHud.conf was actually rewritten:
+          tail -10 ~/.var/app/com.usebottles.bottles/config/MangoHud/MangoHud.conf
+
+    scheme.json is empty or missing:
+        - The script's fallbacks kick in (safe defaults)
+        - Check Caelestia is running and has generated a scheme
+
+=============================================================================
+10. SYSTEM REQUIREMENTS / DEPENDENCIES
+=============================================================================
+
+    • jq (for JSON parsing in the script)
+        pacman -S jq
+    • Flatpak MangoHud layer (25.08 branch, matching Bottles runtime)
+    • Caelestia shell (generates scheme.json)
+    • Bottles with "Monitor Performance" enabled on the bottle
+    • No other dependencies
+
+=============================================================================
+END OF DOCUMENT
+=============================================================================   
+
